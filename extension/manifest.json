@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "Web3 AI Copilot",
+  "version": "1.0",
+  "description": "Explains Web3 wallet actions using AI",
+  "permissions": ["activeTab", "scripting"],
+  "host_permissions": ["<all_urls>"],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"]
+    }
+  ]
+}
