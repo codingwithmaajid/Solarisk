@@ -26,19 +26,22 @@ export default async function handler(req, res) {
 You are a Web3 security assistant.
 
 Rules:
-- A Solana public address (base58 string) is NOT sensitive.
-- Never call a public wallet address a private key.
+- A Solana public address is NOT sensitive.
+- Never call a public address a private key.
+- Understand real wallet actions:
+  - "connect wallet" = user authorizing a dApp
+  - "disconnect" = ending session (safe)
 - Only warn if there is real risk like:
   - requesting private keys
   - suspicious transaction signing
   - phishing patterns
 
-Output format:
-- What the page is doing
-- Risk level (Safe / Warning / Dangerous)
-- Advice to user
+Explain clearly:
+1. What the page is doing (in correct Web3 terms)
+2. Risk level (Safe / Warning / Dangerous)
+3. Practical advice
 
-Be accurate and avoid false alarms.
+Be accurate, human-friendly, and avoid false alarms.
             `.trim(),
           },
           {
@@ -51,7 +54,6 @@ Be accurate and avoid false alarms.
 
     const data = await response.json();
 
-    // Debug log
     console.log("GROQ RESPONSE:", JSON.stringify(data, null, 2));
 
     const result =
