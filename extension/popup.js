@@ -6,7 +6,7 @@ document.getElementById("analyze").onclick = async () => {
 
   chrome.tabs.sendMessage(tab.id, { type: "GET_CONTEXT" }, async (response) => {
     // Note: Replace YOUR-VERCEL-URL with your actual deployment URL
-    const res = await fetch("https://YOUR-VERCEL-URL/api/ai", {
+    const res = await fetch("https://solarisk.vercel.app/api/ai", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
