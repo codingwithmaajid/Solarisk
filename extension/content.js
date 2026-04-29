@@ -7,11 +7,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       context += "Phantom wallet detected. ";
     }
 
-    // grab page text (limited)
+    // grab page text
     const text = document.body.innerText.slice(0, 1000);
 
     context += "Page content: " + text;
 
     sendResponse({ context });
   }
+
+  return true; // 🔥 THIS FIXES YOUR ISSUE
 });
