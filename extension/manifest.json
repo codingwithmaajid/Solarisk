@@ -1,17 +1,37 @@
 {
   "manifest_version": 3,
-  "name": "Web3 AI Copilot",
-  "version": "1.0",
-  "description": "Explains Web3 wallet actions using AI",
-  "permissions": ["activeTab", "scripting"],
-  "host_permissions": ["<all_urls>"],
+  "name": "Solarisk",
+  "version": "1.0.0",
+  "description": "AI Security Copilot for Web3 Transactions",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "scripting"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
   "action": {
-    "default_popup": "popup.html"
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.jpg",
+      "48": "icons/icon48.jpg",
+      "128": "icons/icon128.jpg"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.jpg",
+    "48": "icons/icon48.jpg",
+    "128": "icons/icon128.jpg"
   },
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content.js"]
+      "js": ["content.js"],
+      "css": ["content.css"]
     }
-  ]
+  ],
+  "background": {
+    "service_worker": "background.js"
+  }
 }
