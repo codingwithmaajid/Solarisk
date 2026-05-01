@@ -1,30 +1,68 @@
 // Solarisk Content Script
 // Matches your existing GitHub repo logic
 
+function detectDemoScenario() {
+  const metaScenario = document.querySelector('meta[name="solarisk-scenario"]')?.content?.toLowerCase?.() || "";
+  const dataScenario = document.body?.dataset?.solariskScenario?.toLowerCase?.() || "";
+  const path = window.location.pathname.toLowerCase();
+  const href = window.location.href.toLowerCase();
+  const direct = metaScenario || dataScenario;
+
+  if (["safe", "warning", "danger"].includes(direct)) {
+    return direct;
+  }
+
+  if (path.includes("/demo/safe") || href.includes("solarisk-demo=safe")) return "safe";
+  if (path.includes("/demo/warning") || href.includes("solarisk-demo=warning")) return "warning";
+  if (path.includes("/demo/danger") || href.includes("solarisk-demo=danger")) return "danger";
+
+  return "";
+}
+
+function detectWallets() {
+  const wallets = [];
+
+  if (window.solana || window.phantom) wallets.push("Phantom");
+  if (window.ethereum) wallets.push("MetaMask/Ethereum");
+  if (window.solflare) wallets.push("Solflare");
+  if (window.backpack) wallets.push("Backpack");
+
+  return wallets;
+}
+
+function buildContext() {
+  const wallets = detectWallets();
+  const scenario = detectDemoScenario();
+  const title = document.title ? `Page title: ${document.title}. ` : "";
+  const text = document.body?.innerText?.slice(0, 1200) || "";
+  const scenarioPrefix = scenario ? `Solarisk demo scenario: ${scenario}. ` : "";
+  const walletPrefix = wallets.length ? `Wallets detected: ${wallets.join(", ")}. ` : "";
+
+  return {
+    context: `${scenarioPrefix}${walletPrefix}${title}Page content: ${text}`,
+    scenario,
+    wallets,
+  };
+}
+
 // Listen for GET_CONTEXT message from popup (your original pattern)
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === "GET_CONTEXT") {
-    let context = "";
+    const payload = buildContext();
 
-    // Detect wallets (matching your original logic)
-    if (window.solana || window.phantom) {
-      context += "Phantom wallet detected. ";
-    }
-    if (window.ethereum) {
-      context += "MetaMask/Ethereum wallet detected. ";
-    }
-    if (window.solflare) {
-      context += "Solflare wallet detected. ";
-    }
-    if (window.backpack) {
-      context += "Backpack wallet detected. ";
-    }
+    chrome.runtime.sendMessage({
+      type: "PAGE_CONTEXT_CAPTURED",
+      data: {
+        url: window.location.href,
+        title: document.title,
+        scenario: payload.scenario,
+        wallets: payload.wallets,
+        context: payload.context,
+        capturedAt: Date.now(),
+      },
+    });
 
-    // Grab page text (matching your original logic)
-    const text = document.body.innerText.slice(0, 1000);
-    context += "Page content: " + text;
-
-    sendResponse({ context });
+    sendResponse(payload);
   }
 
   return true; // Keep message channel open for async response
@@ -33,18 +71,28 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 // Also notify background when wallets are detected on page load
 window.addEventListener("load", () => {
   setTimeout(() => {
-    const wallets = [];
-    
-    if (window.solana || window.phantom) wallets.push("Phantom");
-    if (window.ethereum) wallets.push("MetaMask/Ethereum");
-    if (window.solflare) wallets.push("Solflare");
-    if (window.backpack) wallets.push("Backpack");
-    
+    const wallets = detectWallets();
+
     if (wallets.length > 0) {
       chrome.runtime.sendMessage({
         type: "WALLET_DETECTED",
         wallet: wallets.join(", "),
         url: window.location.href
+      });
+    }
+
+    const scenario = detectDemoScenario();
+    if (scenario) {
+      chrome.runtime.sendMessage({
+        type: "PAGE_CONTEXT_CAPTURED",
+        data: {
+          url: window.location.href,
+          title: document.title,
+          scenario,
+          wallets,
+          context: buildContext().context,
+          capturedAt: Date.now(),
+        },
       });
     }
   }, 1000);

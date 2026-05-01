@@ -54,65 +54,50 @@
         </div>
       </div>
 
-      <!-- Content -->
+      <!-- Report -->
       <div id="panel-content" class="panel-content scanning">
-        <section id="agent-card" class="agent-card animate-in">
-          <div>
-            <div class="agent-decision-row">
-              <span id="agent-action" class="agent-action">Investigating</span>
-              <span id="agent-confidence" class="agent-confidence">--%</span>
+        <div class="report">
+          <h2>Scraping Report</h2>
+          <dl class="report-meta">
+            <div>
+              <dt>Page</dt>
+              <dd id="telemetry-page">detecting</dd>
             </div>
-            <p id="agent-intent" class="agent-intent">Intent: detecting page behavior</p>
-          </div>
-          <div id="risk-card" class="risk-pill risk-warning">
-            <svg id="risk-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
-              <line x1="12" y1="9" x2="12" y2="13"/>
-              <line x1="12" y1="17" x2="12.01" y2="17"/>
-            </svg>
-            <span id="risk-text" class="risk-text">Warning</span>
-          </div>
-        </section>
+            <div>
+              <dt>Wallet</dt>
+              <dd id="telemetry-wallet">watching</dd>
+            </div>
+            <div>
+              <dt>Risk</dt>
+              <dd id="risk-text">checking</dd>
+            </div>
+          </dl>
 
-        <section class="context-strip animate-in">
-          <div>
-            <span>Page</span>
-            <strong id="telemetry-page">Detecting</strong>
+          <div class="report-section">
+            <span id="activity-text">Checking page</span>
+            <p id="analysis-text">Reading page context and preparing a recommendation.</p>
           </div>
-          <div>
-            <span>Wallet</span>
-            <strong id="telemetry-wallet">Watching</strong>
-          </div>
-          <div>
-            <span>Payment</span>
-            <strong id="telemetry-payment">Mock</strong>
-          </div>
-        </section>
 
-        <section class="summary-card animate-in">
-          <div class="summary-header">
-            <span id="activity-text">Scanning page</span>
+          <div class="report-section">
+            <span>Agent Suggestion</span>
+            <p id="advice-text">Execute will appear after the check completes.</p>
           </div>
-          <p id="analysis-text" class="analysis-text">Solarisk is reading page context and preparing an execution decision.</p>
-        </section>
 
-        <section class="policy-card animate-in">
-          <div class="summary-header">
-            <span id="advice-text">Review the request before proceeding.</span>
+          <div class="hidden-agent-state" aria-hidden="true">
+            <span id="agent-action">Checking</span>
+            <span id="agent-confidence">--%</span>
+            <span id="agent-intent">Intent: detecting</span>
+            <span id="telemetry-payment">mock</span>
+            <ol id="agent-timeline"></ol>
+            <div id="agent-card"></div>
+            <div id="risk-card"></div>
           </div>
-          <ol id="agent-timeline" class="agent-timeline">
-            <li>Page scan queued</li>
-            <li>Wallet context pending</li>
-            <li>Execution policy pending</li>
-          </ol>
-        </section>
+        </div>
       </div>
 
       <!-- Actions -->
       <div id="panel-actions" class="panel-actions disabled">
-        <button id="btn-execute" class="btn btn-primary">Protect & Execute</button>
-        <button id="btn-pay-execute" class="btn">Pay & Execute</button>
-        <button id="btn-continue" class="btn btn-muted">Continue Anyway</button>
+        <button id="btn-execute" class="btn btn-primary">Execute</button>
       </div>
     </div>
   </div>

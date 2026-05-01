@@ -20,8 +20,68 @@ function hasAny(text, terms) {
   return terms.some((term) => text.includes(term));
 }
 
+function detectDemoScenario(text = "") {
+  const match = text.toLowerCase().match(/solarisk demo scenario:\s*(safe|warning|danger)/);
+  return match?.[1] || "";
+}
+
+function buildDemoAgent(scenario) {
+  if (scenario === "safe") {
+    return {
+      risk: "Safe",
+      intent: "demo_safe",
+      agent_action: "ALLOW",
+      confidence: 98,
+      reason: "This demo page is intentionally safe and contains only wallet-connect style language.",
+      execution_policy: [
+        "Allow browsing and normal wallet viewing",
+        "No transfer or signature request is present",
+        "Keep execution mode idle",
+      ],
+    };
+  }
+
+  if (scenario === "danger") {
+    return {
+      risk: "Dangerous",
+      intent: "demo_danger",
+      agent_action: "BLOCK",
+      confidence: 99,
+      reason: "This demo page intentionally includes seed phrase and private key request language.",
+      execution_policy: [
+        "Block private key and recovery phrase requests",
+        "Reject suspicious signature prompts",
+        "Do not continue from this page",
+      ],
+    };
+  }
+
+  if (scenario === "warning") {
+    return {
+      risk: "Warning",
+      intent: "demo_warning",
+      agent_action: "PROTECT_AND_EXECUTE",
+      confidence: 97,
+      reason: "This demo page intentionally requests signature and token approval style actions.",
+      execution_policy: [
+        "Warn before any signature or approval",
+        "Require protected execution mode",
+        "Review the requested transfer carefully",
+      ],
+    };
+  }
+
+  return null;
+}
+
 function classifyText(text = "") {
   const lowerText = text.toLowerCase();
+  const demoScenario = detectDemoScenario(lowerText);
+
+  if (demoScenario) {
+    return buildDemoAgent(demoScenario);
+  }
+
   const hasDanger = hasAny(lowerText, [
     "seed phrase",
     "secret recovery phrase",
@@ -193,6 +253,10 @@ You are Solarisk, an agentic Web3 security copilot for Solana stablecoin and wal
 Rules:
 - A Solana public address is NOT sensitive.
 - Never call a public address a private key.
+- If the page includes a Solarisk demo scenario marker, treat it as authoritative:
+  - safe => return Safe / ALLOW
+  - warning => return Warning / PROTECT_AND_EXECUTE
+  - danger => return Dangerous / BLOCK
 - Understand real wallet actions:
   - "connect wallet" = normal dApp authorization. This is Safe unless paired with signing, transfer, approval, seed phrase, or private key requests.
   - "disconnect wallet" = ending an existing session. This is Safe.

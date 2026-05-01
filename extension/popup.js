@@ -7,7 +7,7 @@ const DODO_CHECKOUT_URL = "https://solarisk.vercel.app/api/dodo-checkout";
 const BUTTON_LABELS = {
   dodo: "Connect",
   continue: "Continue Anyway",
-  execute: "Protect & Execute",
+  execute: "Execute",
   payExecute: "Pay & Execute",
 };
 
@@ -67,6 +67,77 @@ function getStorage(keys) {
   });
 }
 
+async function hydrateLatestScanState() {
+  const { latestScanState } = await getStorage(["latestScanState"]);
+  if (!latestScanState) return;
+
+  updatePanel(latestScanState);
+
+  if (latestScanState.agent) {
+    updateAgent(latestScanState.agent);
+  }
+
+  setTelemetry({
+    page: latestScanState.page,
+    wallet: latestScanState.wallet,
+    payment: latestScanState.payment,
+  });
+}
+
+function detectDemoScenario(text = "") {
+  const match = text.toLowerCase().match(/solarisk demo scenario:\s*(safe|warning|danger)/);
+  return match?.[1] || "";
+}
+
+function buildDemoAgent(scenario) {
+  if (scenario === "safe") {
+    return {
+      risk: "Safe",
+      intent: "demo_safe",
+      agent_action: "ALLOW",
+      confidence: 98,
+      reason: "This demo page is intentionally safe and contains only wallet-connect style language.",
+      execution_policy: [
+        "Allow browsing and normal wallet viewing",
+        "No transfer or signature request is present",
+        "Keep execution mode idle",
+      ],
+    };
+  }
+
+  if (scenario === "danger") {
+    return {
+      risk: "Dangerous",
+      intent: "demo_danger",
+      agent_action: "BLOCK",
+      confidence: 99,
+      reason: "This demo page intentionally includes seed phrase and private key request language.",
+      execution_policy: [
+        "Block private key and recovery phrase requests",
+        "Reject suspicious signature prompts",
+        "Do not continue from this page",
+      ],
+    };
+  }
+
+  if (scenario === "warning") {
+    return {
+      risk: "Warning",
+      intent: "demo_warning",
+      agent_action: "PROTECT_AND_EXECUTE",
+      confidence: 97,
+      reason: "This demo page intentionally requests signature and token approval style actions.",
+      execution_policy: [
+        "Warn before any signature or approval",
+        "Require protected execution mode",
+        "Review the requested transfer carefully",
+      ],
+    };
+  }
+
+  return null;
+}
+
 // Navigation
 async function showPage(pageName, options = {}) {
   const shouldScan = options.scan !== false;
@@ -78,10 +149,11 @@ async function showPage(pageName, options = {}) {
   if (!pages[pageName]) return;
 
   pages[pageName].classList.add("active");
-  await setStorage({ currentPage: pageName });
 
   if (pageName === "dashboard" && shouldScan) {
     startScan();
+  } else if (pageName === "dashboard") {
+    await hydrateLatestScanState();
   }
 }
 
@@ -116,9 +188,9 @@ function detectWalletSignal(context = "") {
 }
 
 function setTelemetry({ page, wallet, payment } = {}) {
-  if (page) setText(panel.telemetryPage, page);
-  if (wallet) setText(panel.telemetryWallet, wallet);
-  if (payment) setText(panel.telemetryPayment, payment);
+  if (page) setText(panel.telemetryPage, `Page: ${page}`);
+  if (wallet) setText(panel.telemetryWallet, `Wallet: ${wallet}`);
+  if (payment) setText(panel.telemetryPayment, `Payment: ${payment}`);
 }
 
 function formatAgentAction(action = "PROTECT_AND_EXECUTE") {
@@ -149,6 +221,12 @@ function hasAny(text, terms) {
 
 function classifyContext(text = "") {
   const lowerText = text.toLowerCase();
+  const demoScenario = detectDemoScenario(lowerText);
+
+  if (demoScenario) {
+    return buildDemoAgent(demoScenario);
+  }
+
   const hasDanger = hasAny(lowerText, [
     "seed phrase",
     "secret recovery phrase",
@@ -264,6 +342,19 @@ function fallbackAgent(result = "", riskLevel = "Warning") {
     reason: summarizeResult(result),
     execution_policy: policy,
   };
+}
+
+async function saveScanState(scanState) {
+  const state = {
+    latestScanState: scanState,
+    lastScanAt: Date.now(),
+  };
+
+  await setStorage(state);
+  chrome.runtime.sendMessage({
+    type: "SCAN_RESULT_READY",
+    data: scanState,
+  });
 }
 
 function normalizeAgent(agent, result, riskLevel) {
@@ -394,10 +485,10 @@ onClick(buttons.execute, () => {
     ],
   });
   updatePanel({
-    activity: "Safe Execution Mode enabled",
-    analysis: "Solarisk will treat the next action as protected. This MVP does not submit blockchain transactions automatically.",
+    activity: "Execution prepared",
+    analysis: "Safe Execution Mode is armed. Solarisk will not submit a blockchain transaction automatically in this MVP.",
     riskLevel: "Safe",
-    advice: "Review the wallet prompt carefully before approving anything in your wallet.",
+    advice: "Review the wallet prompt carefully before approving.",
   });
 });
 
@@ -488,36 +579,61 @@ async function startScan() {
           return;
         }
 
-        // Call your deployed API at solarisk.vercel.app/api/ai
-        setTelemetry({ wallet: detectWalletSignal(response.context) });
-        setText(panel.scanningText, "Running AI risk model...");
-        const res = await fetch(API_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: response.context }),
-        });
-
-        const data = await res.json().catch(() => ({}));
-
-        if (!res.ok) {
-          throw new Error(data.result || data.error || "AI analysis request failed.");
+        if (response.scenario) {
+          setTelemetry({ payment: `Demo: ${response.scenario}` });
         }
 
-        const aiResult = data.result || "No response from AI";
         const localAgent = classifyContext(response.context);
+        setTelemetry({ wallet: detectWalletSignal(response.context) });
+        setText(panel.scanningText, "Running AI risk model...");
+        let aiResult = localAgent?.reason || "No response from AI";
+        let agent = localAgent;
 
-        // Parse the AI response to extract risk level
-        const riskLevel = localAgent?.risk || data.agent?.risk || parseRiskLevel(aiResult);
-        const agent = localAgent || normalizeAgent(data.agent, aiResult, riskLevel);
+        if (!response.scenario) {
+          try {
+            // Call your deployed API at solarisk.vercel.app/api/ai for live page analysis.
+            const res = await fetch(API_URL, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ text: response.context }),
+            });
 
-        updatePanel({
+            const data = await res.json().catch(() => ({}));
+
+            if (!res.ok) {
+              throw new Error(data.result || data.error || "AI analysis request failed.");
+            }
+
+            aiResult = data.result || "No response from AI";
+            const riskLevel = localAgent?.risk || data.agent?.risk || parseRiskLevel(aiResult);
+            agent = localAgent || normalizeAgent(data.agent, aiResult, riskLevel);
+          } catch (aiErr) {
+            if (!agent) {
+              throw aiErr;
+            }
+          }
+        }
+
+        const riskLevel = agent?.risk || parseRiskLevel(aiResult);
+
+        const scanState = {
+          url: tab.url,
+          page: getHostname(tab.url),
+          wallet: detectWalletSignal(response.context),
+          payment: response.scenario ? `Demo: ${response.scenario}` : "Mock ready",
           activity: "Page analyzed",
           analysis: agent.reason || aiResult,
-          riskLevel: riskLevel,
+          riskLevel,
           advice: getAdviceForRisk(riskLevel, agent.agent_action),
-        });
+          agent,
+          scenario: response.scenario || "",
+          scannedAt: Date.now(),
+        };
+
+        updatePanel(scanState);
         updateAgent(agent);
-        setTelemetry({ page: getHostname(tab.url), wallet: detectWalletSignal(response.context), payment: "Mock ready" });
+        setTelemetry({ page: getHostname(tab.url), wallet: detectWalletSignal(response.context), payment: scanState.payment });
+        await saveScanState(scanState);
       } catch (err) {
         console.error("API error:", err);
         updatePanel({
@@ -641,9 +757,5 @@ function updatePanel(result) {
   setText(panel.riskText, statusText);
 }
 
-// Check for saved page on load
-getStorage(["currentPage"]).then((result) => {
-  if (result.currentPage && pages[result.currentPage]) {
-    showPage(result.currentPage);
-  }
-});
+// Always start from the main page when the popup opens.
+showPage("dodo", { scan: false });
