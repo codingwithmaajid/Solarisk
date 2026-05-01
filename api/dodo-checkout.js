@@ -12,10 +12,10 @@ export default async function handler(req, res) {
       const sessionId = `mock_dodo_${Date.now()}`;
 
       return res.status(200).json({
-        checkout_url: `https://solarisk.vercel.app/payment-success?session_id=${sessionId}&mock=true`,
+        checkout_url: `https://solarisk.vercel.app/mock-checkout?session_id=${sessionId}&mock=true`,
         session_id: sessionId,
         mock: true,
-        message: "Mock Dodo checkout session created",
+        message: "Mock checkout session created",
       });
     }
 
