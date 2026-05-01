@@ -5,8 +5,8 @@ const API_URL = "https://solarisk.vercel.app/api/ai";
 const DODO_CHECKOUT_URL = "https://solarisk.vercel.app/api/dodo-checkout";
 
 const BUTTON_LABELS = {
-  dodo: "Pay & Execute",
-  skip: "Scan Current Page",
+  dodo: "Start Agent Scan",
+  skip: "Open Mock Checkout",
   connect: "Connect Wallet",
   continue: "Continue Anyway",
   execute: "Protect & Execute",
@@ -39,6 +39,7 @@ const panel = {
   telemetryPage: document.getElementById("telemetry-page"),
   telemetryWallet: document.getElementById("telemetry-wallet"),
   telemetryPayment: document.getElementById("telemetry-payment"),
+  agentCard: document.getElementById("agent-card"),
   agentAction: document.getElementById("agent-action"),
   agentConfidence: document.getElementById("agent-confidence"),
   agentIntent: document.getElementById("agent-intent"),
@@ -129,7 +130,113 @@ function formatAgentAction(action = "PROTECT_AND_EXECUTE") {
   return action.replaceAll("_", " ");
 }
 
+function summarizeResult(text = "") {
+  const clean = text
+    .replace(/\*\*/g, "")
+    .replace(/#{1,6}\s/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!clean) return "Solarisk prepared an agent decision for this page.";
+
+  const whatMatch = clean.match(/what the page is doing:?\s*(.*?)(risk level:|practical advice:|$)/i);
+  if (whatMatch?.[1]) {
+    return whatMatch[1].replace(/^[-:\s]+/, "").slice(0, 220).trim();
+  }
+
+  const firstSentence = clean.match(/^(.{40,220}?[.!?])\s/);
+  return (firstSentence?.[1] || clean.slice(0, 220)).trim();
+}
+
+function hasAny(text, terms) {
+  return terms.some((term) => text.includes(term));
+}
+
+function classifyContext(text = "") {
+  const lowerText = text.toLowerCase();
+  const hasDanger = hasAny(lowerText, [
+    "seed phrase",
+    "secret recovery phrase",
+    "private key",
+    "paste your key",
+    "enter your recovery",
+    "unlimited approval",
+    "approve unlimited",
+    "drain",
+    "suspicious transaction",
+  ]);
+  const hasTransfer = hasAny(lowerText, [
+    "send transaction",
+    "sign transaction",
+    "sign message",
+    "approve spending",
+    "token transfer",
+    "transfer usdc",
+    "send usdc",
+    "payment request",
+  ]);
+  const hasWalletSession = hasAny(lowerText, [
+    "connect wallet",
+    "disconnect wallet",
+    "connected wallet",
+    "wallet connected",
+    "phantom wallet detected",
+    "solflare wallet detected",
+    "backpack wallet detected",
+  ]);
+
+  if (hasDanger) {
+    return {
+      risk: "Dangerous",
+      intent: "phishing_or_seed_phrase",
+      agent_action: "BLOCK",
+      confidence: 94,
+      reason: "This page contains seed phrase, private key, drainer, or unlimited approval language.",
+      execution_policy: [
+        "Block this page before wallet approval",
+        "Reject private key, seed phrase, or suspicious signature prompts",
+        "Use a fresh tab and verify the domain manually",
+      ],
+    };
+  }
+
+  if (hasTransfer) {
+    return {
+      risk: "Warning",
+      intent: "message_signing",
+      agent_action: "PROTECT_AND_EXECUTE",
+      confidence: 82,
+      reason: "This page appears to involve signing, approval, or token movement, so protected execution is recommended.",
+      execution_policy: [
+        "Require confirmation before signing wallet messages",
+        "Warn before token transfers, approvals, or stablecoin movement",
+        "Block private key and seed phrase requests",
+      ],
+    };
+  }
+
+  if (hasWalletSession) {
+    return {
+      risk: "Safe",
+      intent: "wallet_connect",
+      agent_action: "ALLOW",
+      confidence: 88,
+      reason: "This looks like a normal wallet connection or disconnection state with no transaction request detected.",
+      execution_policy: [
+        "Allow wallet connect and disconnect actions",
+        "Do not treat public wallet address access as sensitive",
+        "Keep transaction prompts blocked unless signing or transfer appears",
+      ],
+    };
+  }
+
+  return null;
+}
+
 function fallbackAgent(result = "", riskLevel = "Warning") {
+  const classified = classifyContext(result);
+  if (classified) return classified;
+
   const normalizedRisk = riskLevel || "Warning";
   let action = "PROTECT_AND_EXECUTE";
   let policy = [
@@ -159,7 +266,7 @@ function fallbackAgent(result = "", riskLevel = "Warning") {
     intent: "unknown",
     agent_action: action,
     confidence: normalizedRisk === "Warning" ? 72 : 84,
-    reason: result || "Solarisk prepared a guarded execution recommendation.",
+    reason: summarizeResult(result),
     execution_policy: policy,
   };
 }
@@ -176,7 +283,7 @@ function normalizeAgent(agent, result, riskLevel) {
     intent: agent.intent || fallback.intent,
     agent_action: agent.agent_action || fallback.agent_action,
     confidence: Number(agent.confidence) || fallback.confidence,
-    reason: agent.reason || fallback.reason,
+    reason: summarizeResult(agent.reason || fallback.reason),
     execution_policy: Array.isArray(agent.execution_policy)
       ? agent.execution_policy.slice(0, 4)
       : fallback.execution_policy,
@@ -189,6 +296,12 @@ function updateAgent(agent) {
   setText(panel.agentAction, formatAgentAction(agent.agent_action));
   setText(panel.agentConfidence, `${Math.min(99, Math.max(0, Math.round(agent.confidence || 0)))}%`);
   setText(panel.agentIntent, `Intent: ${formatAgentAction(agent.intent || "unknown").toLowerCase()}`);
+
+  if (panel.agentCard) {
+    const risk = (agent.risk || "").toLowerCase();
+    const variant = risk === "dangerous" || risk === "danger" ? "danger" : risk === "safe" ? "safe" : "warning";
+    panel.agentCard.className = `agent-card agent-card-${variant} animate-in`;
+  }
 
   if (panel.agentTimeline) {
     panel.agentTimeline.textContent = "";
@@ -236,18 +349,20 @@ async function createDodoCheckout(button) {
     console.error("Dodo checkout error:", err);
     await showCheckoutError(err.message);
   } finally {
-    const label = button === buttons.payExecute ? BUTTON_LABELS.payExecute : BUTTON_LABELS.dodo;
+    let label = BUTTON_LABELS.dodo;
+    if (button === buttons.payExecute) label = BUTTON_LABELS.payExecute;
+    if (button === buttons.skip) label = BUTTON_LABELS.skip;
     hideLoading(button, label);
   }
 }
 
 // Button Handlers
 onClick(buttons.dodo, () => {
-  createDodoCheckout(buttons.dodo);
+  showPage("dashboard");
 });
 
 onClick(buttons.skip, () => {
-  showPage("dashboard");
+  createDodoCheckout(buttons.skip);
 });
 
 onClick(buttons.connect, async () => {
@@ -407,10 +522,11 @@ async function startScan() {
         }
 
         const aiResult = data.result || "No response from AI";
+        const localAgent = classifyContext(response.context);
 
         // Parse the AI response to extract risk level
-        const riskLevel = data.agent?.risk || parseRiskLevel(aiResult);
-        const agent = normalizeAgent(data.agent, aiResult, riskLevel);
+        const riskLevel = localAgent?.risk || data.agent?.risk || parseRiskLevel(aiResult);
+        const agent = localAgent || normalizeAgent(data.agent, aiResult, riskLevel);
 
         updatePanel({
           activity: "Page analyzed",

@@ -7,38 +7,37 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <!-- Page 1: Payment or scan -->
+  <!-- Page 1: Agent entry -->
   <div id="page-dodo" class="page active">
     <div class="intro">
       <div class="brand-row">
         <div class="brand-mark">S</div>
         <div>
           <h1 class="logo">Solarisk</h1>
-          <p class="tagline">AI risk checks before Web3 actions move funds.</p>
+          <p class="tagline">An agentic guardrail for Solana wallet actions.</p>
         </div>
       </div>
 
       <div class="signal-card">
         <div class="signal-header">
-          <span>Live protection</span>
-          <strong>Mock payment ready</strong>
+          <span>Agent ready</span>
+          <strong>Scan first</strong>
         </div>
-        <div class="signal-bars" aria-hidden="true">
-          <span></span>
-          <span></span>
-          <span></span>
-          <span></span>
+        <div class="agent-steps" aria-hidden="true">
+          <span>Scan</span>
+          <span>Decide</span>
+          <span>Execute</span>
         </div>
       </div>
     </div>
 
     <div class="buttons-container">
       <button id="btn-dodo" class="btn btn-primary">
-        <span>Pay & Execute</span>
+        <span>Start Agent Scan</span>
       </button>
       <span class="divider">or</span>
       <button id="btn-skip" class="btn btn-muted">
-        <span>Scan Current Page</span>
+        <span>Open Mock Checkout</span>
       </button>
     </div>
   </div>
@@ -94,7 +93,7 @@
 
       <!-- Content -->
       <div id="panel-content" class="panel-content scanning">
-        <section class="agent-card animate-in">
+        <section id="agent-card" class="agent-card animate-in">
           <div>
             <div class="agent-decision-row">
               <span id="agent-action" class="agent-action">Investigating</span>
