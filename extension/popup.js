@@ -5,9 +5,7 @@ const API_URL = "https://solarisk.vercel.app/api/ai";
 const DODO_CHECKOUT_URL = "https://solarisk.vercel.app/api/dodo-checkout";
 
 const BUTTON_LABELS = {
-  dodo: "Start Agent Scan",
-  skip: "Open Mock Checkout",
-  connect: "Connect Wallet",
+  dodo: "Connect",
   continue: "Continue Anyway",
   execute: "Protect & Execute",
   payExecute: "Pay & Execute",
@@ -16,14 +14,11 @@ const BUTTON_LABELS = {
 // DOM Elements
 const pages = {
   dodo: document.getElementById("page-dodo"),
-  connect: document.getElementById("page-connect"),
   dashboard: document.getElementById("page-dashboard"),
 };
 
 const buttons = {
   dodo: document.getElementById("btn-dodo"),
-  skip: document.getElementById("btn-skip"),
-  connect: document.getElementById("btn-connect"),
   continue: document.getElementById("btn-continue"),
   execute: document.getElementById("btn-execute"),
   payExecute: document.getElementById("btn-pay-execute"),
@@ -351,30 +346,17 @@ async function createDodoCheckout(button) {
   } finally {
     let label = BUTTON_LABELS.dodo;
     if (button === buttons.payExecute) label = BUTTON_LABELS.payExecute;
-    if (button === buttons.skip) label = BUTTON_LABELS.skip;
     hideLoading(button, label);
   }
 }
 
 // Button Handlers
 onClick(buttons.dodo, () => {
-  showPage("dashboard");
-});
-
-onClick(buttons.skip, () => {
-  createDodoCheckout(buttons.skip);
-});
-
-onClick(buttons.connect, async () => {
-  showLoading(buttons.connect, "Connecting...");
-
-  await setStorage({
+  setStorage({
     walletConnected: true,
     walletProvider: "Simulated Solana Wallet",
     walletConnectedAt: Date.now(),
   });
-
-  hideLoading(buttons.connect, BUTTON_LABELS.connect);
   showPage("dashboard");
 });
 
