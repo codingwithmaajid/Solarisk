@@ -7,36 +7,66 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <!-- Page 1: DoDo Payments -->
+  <!-- Page 1: Payment or scan -->
   <div id="page-dodo" class="page active">
-    <h1 class="logo">Solarisk</h1>
+    <div class="intro">
+      <div class="brand-row">
+        <div class="brand-mark">S</div>
+        <div>
+          <h1 class="logo">Solarisk</h1>
+          <p class="tagline">AI risk checks before Web3 actions move funds.</p>
+        </div>
+      </div>
+
+      <div class="signal-card">
+        <div class="signal-header">
+          <span>Live protection</span>
+          <strong>Mock payment ready</strong>
+        </div>
+        <div class="signal-bars" aria-hidden="true">
+          <span></span>
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
+      </div>
+    </div>
+
     <div class="buttons-container">
-      <button id="btn-dodo" class="btn">
-        <span>DoDo Payments</span>
+      <button id="btn-dodo" class="btn btn-primary">
+        <span>Pay & Execute</span>
       </button>
       <span class="divider">or</span>
       <button id="btn-skip" class="btn btn-muted">
-        <span>Skip</span>
+        <span>Scan Current Page</span>
       </button>
     </div>
   </div>
 
   <!-- Page 2: Connect Wallet -->
   <div id="page-connect" class="page">
-    <h1 class="logo logo-top">Solarisk</h1>
+    <div class="intro">
+      <div class="brand-row">
+        <div class="brand-mark">S</div>
+        <div>
+          <h1 class="logo">Solarisk</h1>
+          <p class="tagline">Simulated wallet connect for the MVP demo.</p>
+        </div>
+      </div>
+    </div>
     <div class="connect-content">
       <div class="spacer"></div>
       <div class="connect-btn-container">
         <button id="btn-connect" class="btn">
-          <span>connect</span>
+          <span>Connect Wallet</span>
         </button>
       </div>
     </div>
   </div>
 
   <!-- Page 3: Dashboard / Panel -->
-  <div id="page-dashboard" class="page" style="padding: 16px;">
-    <div class="panel" style="position: relative;">
+  <div id="page-dashboard" class="page page-dashboard">
+    <div class="panel">
       <!-- Scanning Overlay -->
       <div id="scanning-overlay" class="scanning-overlay active">
         <div class="scanning-backdrop">
@@ -64,41 +94,15 @@
 
       <!-- Content -->
       <div id="panel-content" class="panel-content scanning">
-        <!-- Activity Detected -->
-        <section class="animate-in" style="animation-delay: 0.1s;">
-          <h3 class="section-title">Activity Detected</h3>
-          <div class="section-card activity-card">
-            <div class="activity-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/>
-                <path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/>
-                <path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/>
-              </svg>
+        <section class="agent-card animate-in">
+          <div>
+            <div class="agent-decision-row">
+              <span id="agent-action" class="agent-action">Investigating</span>
+              <span id="agent-confidence" class="agent-confidence">--%</span>
             </div>
-            <p id="activity-text" class="activity-text">Wallet connection request detected</p>
+            <p id="agent-intent" class="agent-intent">Intent: detecting page behavior</p>
           </div>
-        </section>
-
-        <!-- AI Analysis -->
-        <section class="animate-in" style="animation-delay: 0.2s;">
-          <h3 class="section-title">AI Analysis</h3>
-          <div class="section-card section-card-light">
-            <p id="analysis-text" class="analysis-text">This dApp is requesting access to view your wallet address and token balances.</p>
-          </div>
-        </section>
-
-        <!-- Recommendation -->
-        <section class="animate-in" style="animation-delay: 0.25s;">
-          <h3 class="section-title">Recommendation</h3>
-          <div class="section-card section-card-light">
-            <p id="advice-text" class="analysis-text">Review the request before proceeding.</p>
-          </div>
-        </section>
-
-        <!-- Risk Level -->
-        <section class="animate-in" style="animation-delay: 0.3s;">
-          <h3 class="section-title">Risk Level</h3>
-          <div id="risk-card" class="risk-card risk-warning">
+          <div id="risk-card" class="risk-pill risk-warning">
             <svg id="risk-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
               <line x1="12" y1="9" x2="12" y2="13"/>
@@ -107,13 +111,47 @@
             <span id="risk-text" class="risk-text">Warning</span>
           </div>
         </section>
+
+        <section class="context-strip animate-in">
+          <div>
+            <span>Page</span>
+            <strong id="telemetry-page">Detecting</strong>
+          </div>
+          <div>
+            <span>Wallet</span>
+            <strong id="telemetry-wallet">Watching</strong>
+          </div>
+          <div>
+            <span>Payment</span>
+            <strong id="telemetry-payment">Mock</strong>
+          </div>
+        </section>
+
+        <section class="summary-card animate-in">
+          <div class="summary-header">
+            <span id="activity-text">Scanning page</span>
+          </div>
+          <p id="analysis-text" class="analysis-text">Solarisk is reading page context and preparing an execution decision.</p>
+          <p id="advice-text" class="advice-text">Review the request before proceeding.</p>
+        </section>
+
+        <section class="policy-card animate-in">
+          <div class="summary-header">
+            <span>Execution Policy</span>
+          </div>
+          <ol id="agent-timeline" class="agent-timeline">
+            <li>Page scan queued</li>
+            <li>Wallet context pending</li>
+            <li>Execution policy pending</li>
+          </ol>
+        </section>
       </div>
 
       <!-- Actions -->
       <div id="panel-actions" class="panel-actions disabled">
-        <button id="btn-continue" class="btn btn-muted">Continue</button>
         <button id="btn-execute" class="btn btn-primary">Protect & Execute</button>
         <button id="btn-pay-execute" class="btn">Pay & Execute</button>
+        <button id="btn-continue" class="btn btn-muted">Continue Anyway</button>
       </div>
     </div>
   </div>

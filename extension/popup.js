@@ -5,10 +5,10 @@ const API_URL = "https://solarisk.vercel.app/api/ai";
 const DODO_CHECKOUT_URL = "https://solarisk.vercel.app/api/dodo-checkout";
 
 const BUTTON_LABELS = {
-  dodo: "DoDo Payments",
-  skip: "Skip",
-  connect: "connect",
-  continue: "Continue",
+  dodo: "Pay & Execute",
+  skip: "Scan Current Page",
+  connect: "Connect Wallet",
+  continue: "Continue Anyway",
   execute: "Protect & Execute",
   payExecute: "Pay & Execute",
 };
@@ -35,6 +35,14 @@ const panel = {
   statusText: document.getElementById("status-text"),
   content: document.getElementById("panel-content"),
   actions: document.getElementById("panel-actions"),
+  scanningText: document.querySelector("#scanning-overlay .scanning-text span"),
+  telemetryPage: document.getElementById("telemetry-page"),
+  telemetryWallet: document.getElementById("telemetry-wallet"),
+  telemetryPayment: document.getElementById("telemetry-payment"),
+  agentAction: document.getElementById("agent-action"),
+  agentConfidence: document.getElementById("agent-confidence"),
+  agentIntent: document.getElementById("agent-intent"),
+  agentTimeline: document.getElementById("agent-timeline"),
   activityText: document.getElementById("activity-text"),
   analysisText: document.getElementById("analysis-text"),
   adviceText: document.getElementById("advice-text"),
@@ -94,6 +102,106 @@ function hideLoading(button, text) {
   button.innerHTML = `<span>${text}</span>`;
 }
 
+function getHostname(url) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "") || "Current tab";
+  } catch (err) {
+    return "Current tab";
+  }
+}
+
+function detectWalletSignal(context = "") {
+  const lowerContext = context.toLowerCase();
+  if (lowerContext.includes("phantom")) return "Phantom";
+  if (lowerContext.includes("solflare")) return "Solflare";
+  if (lowerContext.includes("backpack")) return "Backpack";
+  if (lowerContext.includes("metamask") || lowerContext.includes("ethereum")) return "EVM";
+  return "None found";
+}
+
+function setTelemetry({ page, wallet, payment } = {}) {
+  if (page) setText(panel.telemetryPage, page);
+  if (wallet) setText(panel.telemetryWallet, wallet);
+  if (payment) setText(panel.telemetryPayment, payment);
+}
+
+function formatAgentAction(action = "PROTECT_AND_EXECUTE") {
+  return action.replaceAll("_", " ");
+}
+
+function fallbackAgent(result = "", riskLevel = "Warning") {
+  const normalizedRisk = riskLevel || "Warning";
+  let action = "PROTECT_AND_EXECUTE";
+  let policy = [
+    "Require confirmation before signing wallet messages",
+    "Warn before token transfers, approvals, or stablecoin movement",
+    "Block private key and seed phrase requests",
+  ];
+
+  if (normalizedRisk.toLowerCase() === "dangerous") {
+    action = "BLOCK";
+    policy = [
+      "Block this page before wallet approval",
+      "Reject private key, seed phrase, or suspicious signature prompts",
+      "Use a fresh tab and verify the domain manually",
+    ];
+  } else if (normalizedRisk.toLowerCase() === "safe") {
+    action = "ALLOW";
+    policy = [
+      "No wallet or payment action detected",
+      "Allow normal browsing",
+      "Keep transaction prompts blocked unless a wallet request appears",
+    ];
+  }
+
+  return {
+    risk: normalizedRisk,
+    intent: "unknown",
+    agent_action: action,
+    confidence: normalizedRisk === "Warning" ? 72 : 84,
+    reason: result || "Solarisk prepared a guarded execution recommendation.",
+    execution_policy: policy,
+  };
+}
+
+function normalizeAgent(agent, result, riskLevel) {
+  if (!agent || typeof agent !== "object") {
+    return fallbackAgent(result, riskLevel);
+  }
+
+  const fallback = fallbackAgent(result, riskLevel);
+
+  return {
+    risk: agent.risk || fallback.risk,
+    intent: agent.intent || fallback.intent,
+    agent_action: agent.agent_action || fallback.agent_action,
+    confidence: Number(agent.confidence) || fallback.confidence,
+    reason: agent.reason || fallback.reason,
+    execution_policy: Array.isArray(agent.execution_policy)
+      ? agent.execution_policy.slice(0, 4)
+      : fallback.execution_policy,
+  };
+}
+
+function updateAgent(agent) {
+  if (!agent) return;
+
+  setText(panel.agentAction, formatAgentAction(agent.agent_action));
+  setText(panel.agentConfidence, `${Math.min(99, Math.max(0, Math.round(agent.confidence || 0)))}%`);
+  setText(panel.agentIntent, `Intent: ${formatAgentAction(agent.intent || "unknown").toLowerCase()}`);
+
+  if (panel.agentTimeline) {
+    panel.agentTimeline.textContent = "";
+    const policyItems = agent.execution_policy?.length ? agent.execution_policy : ["Execution policy pending"];
+
+    policyItems.forEach((item) => {
+      const listItem = document.createElement("li");
+      listItem.textContent = item;
+      panel.agentTimeline.appendChild(listItem);
+    });
+  }
+}
+
 async function showCheckoutError(message) {
   if (!pages.dashboard?.classList.contains("active")) {
     await showPage("dashboard", { scan: false });
@@ -122,6 +230,7 @@ async function createDodoCheckout(button) {
       throw new Error(data.error || "Dodo checkout did not return a checkout URL.");
     }
 
+    setTelemetry({ payment: data.mock ? "Mock live" : "Checkout" });
     chrome.tabs.create({ url: data.checkout_url });
   } catch (err) {
     console.error("Dodo checkout error:", err);
@@ -155,6 +264,17 @@ onClick(buttons.connect, async () => {
 });
 
 onClick(buttons.continue, () => {
+  setTelemetry({ payment: "Bypassed" });
+  updateAgent({
+    intent: "manual_override",
+    agent_action: "WARN",
+    confidence: 61,
+    execution_policy: [
+      "User selected unprotected continuation",
+      "No blockchain transaction submitted by Solarisk",
+      "Reject transfer, approval, or signature prompts unless expected",
+    ],
+  });
   updatePanel({
     activity: "Continuing unprotected",
     analysis: "You chose to continue without Solarisk Safe Execution Mode. No transaction has been sent by Solarisk.",
@@ -164,6 +284,18 @@ onClick(buttons.continue, () => {
 });
 
 onClick(buttons.execute, () => {
+  setTelemetry({ payment: "Ready" });
+  updateAgent({
+    intent: "protected_execution",
+    agent_action: "PROTECT_AND_EXECUTE",
+    confidence: 91,
+    execution_policy: [
+      "Safe Execution Mode armed",
+      "Block seed phrase and private key requests",
+      "Warn on token transfer, approval, or message signing",
+      "Allow wallet-view requests after user confirmation",
+    ],
+  });
   updatePanel({
     activity: "Safe Execution Mode enabled",
     analysis: "Solarisk will treat the next action as protected. This MVP does not submit blockchain transactions automatically.",
@@ -200,6 +332,18 @@ function setScanningState() {
   }
 
   setText(panel.statusText, "Scanning");
+  setText(panel.scanningText, "Mapping page signals...");
+  setTelemetry({ page: "Detecting", wallet: "Watching", payment: "Mock" });
+  updateAgent({
+    intent: "detecting",
+    agent_action: "INVESTIGATING",
+    confidence: 0,
+    execution_policy: [
+      "Page scan queued",
+      "Wallet context pending",
+      "Execution policy pending",
+    ],
+  });
 }
 
 // Scanning & Analysis (matches your original GitHub repo pattern)
@@ -208,6 +352,7 @@ async function startScan() {
 
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    setTelemetry({ page: getHostname(tab?.url), wallet: "Watching" });
 
     if (!tab?.id || isUnsupportedUrl(tab.url)) {
       updatePanel({
@@ -220,6 +365,7 @@ async function startScan() {
     }
 
     // Use your original GET_CONTEXT pattern from content.js
+    setText(panel.scanningText, "Reading wallet context...");
     chrome.tabs.sendMessage(tab.id, { type: "GET_CONTEXT" }, async (response) => {
       const runtimeError = chrome.runtime.lastError;
 
@@ -246,6 +392,8 @@ async function startScan() {
         }
 
         // Call your deployed API at solarisk.vercel.app/api/ai
+        setTelemetry({ wallet: detectWalletSignal(response.context) });
+        setText(panel.scanningText, "Running AI risk model...");
         const res = await fetch(API_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -261,14 +409,17 @@ async function startScan() {
         const aiResult = data.result || "No response from AI";
 
         // Parse the AI response to extract risk level
-        const riskLevel = parseRiskLevel(aiResult);
+        const riskLevel = data.agent?.risk || parseRiskLevel(aiResult);
+        const agent = normalizeAgent(data.agent, aiResult, riskLevel);
 
         updatePanel({
           activity: "Page analyzed",
-          analysis: aiResult,
+          analysis: agent.reason || aiResult,
           riskLevel: riskLevel,
-          advice: getAdviceForRisk(riskLevel),
+          advice: getAdviceForRisk(riskLevel, agent.agent_action),
         });
+        updateAgent(agent);
+        setTelemetry({ page: getHostname(tab.url), wallet: detectWalletSignal(response.context), payment: "Mock ready" });
       } catch (err) {
         console.error("API error:", err);
         updatePanel({
@@ -302,7 +453,19 @@ function parseRiskLevel(text) {
 }
 
 // Get advice based on risk level
-function getAdviceForRisk(riskLevel) {
+function getAdviceForRisk(riskLevel, agentAction = "") {
+  if (agentAction === "BLOCK") {
+    return "Agent recommends blocking this action. Do not approve wallet prompts from this page.";
+  }
+
+  if (agentAction === "PAY_AND_EXECUTE") {
+    return "Agent recommends unlocking protected execution through the mock checkout before continuing.";
+  }
+
+  if (agentAction === "PROTECT_AND_EXECUTE") {
+    return "Agent recommends Safe Execution Mode before approving any wallet prompt.";
+  }
+
   switch (riskLevel.toLowerCase()) {
     case "safe":
       return "This appears to be safe to proceed.";
@@ -373,7 +536,7 @@ function updatePanel(result) {
 
   // Update risk card
   if (panel.riskCard) {
-    panel.riskCard.className = `risk-card ${riskClass}`;
+    panel.riskCard.className = `risk-pill ${riskClass}`;
     const currentIcon = panel.riskCard.querySelector("svg");
     if (currentIcon) currentIcon.outerHTML = getRiskIcon(statusText);
   }

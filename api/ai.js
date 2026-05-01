@@ -1,3 +1,62 @@
+function fallbackAgent(result) {
+  const lowerResult = result.toLowerCase();
+  let risk = "Warning";
+  let agent_action = "PROTECT_AND_EXECUTE";
+  let execution_policy = [
+    "Require confirmation before signing wallet messages",
+    "Warn before token transfers, approvals, or stablecoin movement",
+    "Block private key and seed phrase requests",
+  ];
+
+  if (lowerResult.includes("dangerous") || lowerResult.includes("danger") || lowerResult.includes("high risk")) {
+    risk = "Dangerous";
+    agent_action = "BLOCK";
+    execution_policy = [
+      "Block this page before wallet approval",
+      "Reject private key, seed phrase, or suspicious signature prompts",
+      "Use a fresh tab and verify the domain manually",
+    ];
+  } else if (lowerResult.includes("safe") || lowerResult.includes("low risk") || lowerResult.includes("no risk")) {
+    risk = "Safe";
+    agent_action = "ALLOW";
+    execution_policy = [
+      "No wallet or payment action detected",
+      "Allow normal browsing",
+      "Keep transaction prompts blocked unless a wallet request appears",
+    ];
+  }
+
+  return {
+    risk,
+    intent: "wallet_or_payment_context",
+    agent_action,
+    confidence: risk === "Warning" ? 72 : 84,
+    reason: result.slice(0, 240),
+    execution_policy,
+  };
+}
+
+function parseAgentResponse(content) {
+  try {
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return fallbackAgent(content);
+    const parsed = JSON.parse(jsonMatch[0]);
+
+    return {
+      risk: parsed.risk || "Warning",
+      intent: parsed.intent || "wallet_or_payment_context",
+      agent_action: parsed.agent_action || "PROTECT_AND_EXECUTE",
+      confidence: Number(parsed.confidence) || 70,
+      reason: parsed.reason || content.slice(0, 240),
+      execution_policy: Array.isArray(parsed.execution_policy)
+        ? parsed.execution_policy.slice(0, 4)
+        : fallbackAgent(content).execution_policy,
+    };
+  } catch (err) {
+    return fallbackAgent(content);
+  }
+}
+
 export default async function handler(req, res) {
   try {
     // Allow only POST
@@ -23,7 +82,7 @@ export default async function handler(req, res) {
           {
             role: "system",
             content: `
-You are a Web3 security assistant.
+You are Solarisk, an agentic Web3 security copilot for Solana stablecoin and wallet actions.
 
 Rules:
 - A Solana public address is NOT sensitive.
@@ -35,11 +94,23 @@ Rules:
   - requesting private keys
   - suspicious transaction signing
   - phishing patterns
+- Act like a decision agent: classify intent, choose the safest next action, and prepare an execution policy.
+- Do not claim that you submitted a blockchain transaction.
+- If no wallet/payment/signing action is detected, use risk "Safe", agent_action "ALLOW", and a calm browsing policy.
 
-Explain clearly:
-1. What the page is doing (in correct Web3 terms)
-2. Risk level (Safe / Warning / Dangerous)
-3. Practical advice
+Return ONLY valid JSON with this exact shape:
+{
+  "risk": "Safe" | "Warning" | "Dangerous",
+  "intent": "wallet_connect" | "stablecoin_payment" | "token_transfer" | "message_signing" | "phishing_or_seed_phrase" | "unknown",
+  "agent_action": "ALLOW" | "WARN" | "BLOCK" | "PROTECT_AND_EXECUTE" | "PAY_AND_EXECUTE",
+  "confidence": 0-100,
+  "reason": "one concise sentence explaining the decision",
+  "execution_policy": [
+    "specific policy step 1",
+    "specific policy step 2",
+    "specific policy step 3"
+  ]
+}
 
 Be accurate, human-friendly, and avoid false alarms.
             `.trim(),
@@ -61,7 +132,12 @@ Be accurate, human-friendly, and avoid false alarms.
       data?.error?.message ||
       "No response from AI";
 
-    return res.status(200).json({ result });
+    const agent = parseAgentResponse(result);
+
+    return res.status(200).json({
+      result: agent.reason,
+      agent,
+    });
 
   } catch (err) {
     console.error("SERVER ERROR:", err);
