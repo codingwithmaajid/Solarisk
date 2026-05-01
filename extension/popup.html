@@ -10,24 +10,19 @@
   <!-- Page 1: Agent entry -->
   <div id="page-dodo" class="page active">
     <div class="intro">
+      <img class="hero-sun" src="spiral-sun.jpeg" alt="Solarisk spiral sun mark">
       <div class="brand-row">
         <div class="brand-mark">S</div>
         <div>
           <h1 class="logo">Solarisk</h1>
-          <p class="tagline">An agentic guardrail for Solana wallet actions.</p>
+          <p class="tagline">A calm security agent for Solana wallet actions.</p>
         </div>
       </div>
 
-      <div class="signal-card">
-        <div class="signal-header">
-          <span>Agent ready</span>
-          <strong>Scan first</strong>
-        </div>
-        <div class="agent-steps" aria-hidden="true">
-          <span>Scan</span>
-          <span>Decide</span>
-          <span>Execute</span>
-        </div>
+      <div class="flow-preview" aria-hidden="true">
+        <span>Scan</span>
+        <span>Decide</span>
+        <span>Act</span>
       </div>
     </div>
 
@@ -37,7 +32,7 @@
       </button>
       <span class="divider">or</span>
       <button id="btn-skip" class="btn btn-muted">
-        <span>Open Mock Checkout</span>
+        <span>Mock Checkout</span>
       </button>
     </div>
   </div>
@@ -131,12 +126,11 @@
             <span id="activity-text">Scanning page</span>
           </div>
           <p id="analysis-text" class="analysis-text">Solarisk is reading page context and preparing an execution decision.</p>
-          <p id="advice-text" class="advice-text">Review the request before proceeding.</p>
         </section>
 
         <section class="policy-card animate-in">
           <div class="summary-header">
-            <span>Execution Policy</span>
+            <span id="advice-text">Review the request before proceeding.</span>
           </div>
           <ol id="agent-timeline" class="agent-timeline">
             <li>Page scan queued</li>
